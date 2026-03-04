@@ -1,6 +1,6 @@
 # SoluBench
 
-**SoluBench** is a benchmark for evaluating large language models on solubility prediction tasks of increasing complexity. It is built on top of [BigSolDB v2.0](https://www.nature.com/articles/s41597-025-05559-8) and [MixtureSolDB](https://doi.org/10.26434/chemrxiv-2025-m51v8) — two curated experimental solubility datasets.
+**SoluBench** is a benchmark for evaluating large language models on solubility-related tasks of various complexity. It is built on top of [BigSolDB v2.0](https://www.nature.com/articles/s41597-025-05559-8) and [MixtureSolDB](https://doi.org/10.26434/chemrxiv-2025-m51v8) — two curated experimental solubility datasets.
 
 > 📄 Preprint: *coming soon*
 
