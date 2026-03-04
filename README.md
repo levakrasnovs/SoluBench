@@ -108,7 +108,7 @@ Download the required source datasets and place them in the working directory:
 | Dataset | Paper | Download |
 |---------|-------|----------|
 | `BigSolDBv2.0.csv` | [Nature Scientific Data](https://www.nature.com/articles/s41597-025-05559-8) | [Zenodo](https://doi.org/10.5281/zenodo.15094979) |
-| `MixtureSolDB.csv` | [ChemRxiv](https://doi.org/10.26434/chemrxiv-2025-m51v8) (accepted in Scientific Data) | [Zenodo](https://doi.org/10.5281/zenodo.18660057) |
+| `MixtureSolDB.csv` | [ChemRxiv](https://doi.org/10.26434/chemrxiv-2025-m51v8) | [Zenodo](https://doi.org/10.5281/zenodo.18660057) |
 
 Then run:
 
