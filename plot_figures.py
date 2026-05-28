@@ -230,25 +230,126 @@ def bar_colors(results):
     return colors
 
 
-def overall_bar(results, xlim, title, out_path, figsize=(4.5, None)):
+# ── Statistical helpers ──────────────────────────────────────────────────────
+
+from scipy.stats import chi2 as _chi2
+
+def _binomial_ci(p, n, z=1.96):
+    """95% CI half-width for a binomial proportion."""
+    se = np.sqrt(p * (1 - p) / n)
+    return z * se
+
+
+def _mcnemar_one_tailed(correct_a, correct_b):
+    """
+    One-tailed McNemar: H1: model_a > model_b.
+    Returns p-value. b = A right & B wrong, c = A wrong & B right.
+    """
+    b = int(( correct_a & ~correct_b).sum())
+    c = int((~correct_a &  correct_b).sum())
+    if b + c == 0:
+        return 1.0
+    stat = (abs(b - c) - 1) ** 2 / (b + c)   # Yates correction
+    p_two = 1 - _chi2.cdf(stat, df=1)
+    return p_two / 2 if b > c else 1 - p_two / 2
+
+
+def _sig_label(p):
+    if p < 0.001: return '***'
+    if p < 0.01:  return '**'
+    if p < 0.05:  return '*'
+    return None   # n.s. → no bracket drawn
+
+
+def overall_bar(results, xlim, title, out_path, figsize=(4.5, None),
+                df_raw=None, answer_col='Answer',
+                sig_pairs=None):
     plt.rcParams.update(RCPARAMS_STANDARD)
     n = len(results)
     h = figsize[1] or max(3.5, 0.35 * n + 1.0)
+
+    # Extra right margin when McNemar brackets are shown
+    right_margin = 0.88 if (sig_pairs and df_raw is not None) else 0.97
+
     fig, ax = plt.subplots(figsize=(figsize[0], h))
 
-    y = np.arange(n)
+    y      = np.arange(n)
     values = [a for _, a, _ in results]
     names  = [NAME_MAP.get(m, m) for m, _, _ in results]
     colors = bar_colors(results)
+    model_names = [m for m, _, _ in results]
 
+    # ── bars ────────────────────────────────────────────────────────────────
     ax.barh(y, values, height=0.7, color=colors, alpha=0.85,
             linewidth=0.4, edgecolor='white')
-    for i, val in enumerate(values):
-        ax.text(val + 0.5, i, f'{val:.1f}%', va='center', ha='left', fontsize=7.5)
+
+    # ── 95% CI error bars ────────────────────────────────────────────────────
+    if df_raw is not None:
+        xerr_list = []
+        for m, acc, cat in results:
+            if m == 'random_baseline' or m not in df_raw.columns:
+                xerr_list.append(0.0)
+            else:
+                correct = df_raw[m].dropna()
+                correct = correct[correct.str.strip() != '']
+                ni = len(correct)
+                p  = (correct == df_raw.loc[correct.index, answer_col]).mean()
+                xerr_list.append(_binomial_ci(p, ni) * 100)
+        ax.errorbar(values, y, xerr=xerr_list, fmt='none',
+                    ecolor='#333333', elinewidth=0.8, capsize=2.0, capthick=0.8,
+                    zorder=5)
+
+    # ── value labels (placed after CI cap so they do not overlap) ─────────
+    for i, (val, (m, acc, cat)) in enumerate(zip(values, results)):
+        if df_raw is not None and m != 'random_baseline' and m in df_raw.columns:
+            offset = xerr_list[i] + 0.6
+        else:
+            offset = 0.6
+        ax.text(val + offset, i, f'{val:.1f}%', va='center', ha='left', fontsize=7.5)
+
+    # ── McNemar significance brackets ────────────────────────────────────────
+    if sig_pairs and df_raw is not None:
+        span     = xlim[1] - xlim[0]
+        x_anchor = xlim[1] - span * 0.01
+        step     = span * 0.035
+        drawn = 0
+        for ma, mb in sig_pairs:
+            if ma not in model_names or mb not in model_names:
+                continue
+            if ma not in df_raw.columns or mb not in df_raw.columns:
+                continue
+            ia = model_names.index(ma)
+            ib = model_names.index(mb)
+            ca = df_raw[ma].dropna(); ca = ca[ca.str.strip() != '']
+            cb = df_raw[mb].dropna(); cb = cb[cb.str.strip() != '']
+            idx = ca.index.intersection(cb.index)
+            if len(idx) == 0:
+                continue
+            corr_a = ca.loc[idx] == df_raw.loc[idx, answer_col]
+            corr_b = cb.loc[idx] == df_raw.loc[idx, answer_col]
+            p = _mcnemar_one_tailed(corr_a, corr_b)
+            label = _sig_label(p)
+            if label is None:
+                continue
+            bx = x_anchor + drawn * step
+            ax.plot([x_anchor, bx], [ia, ia], color='#333333', lw=0.8,
+                    clip_on=False)
+            ax.plot([x_anchor, bx], [ib, ib], color='#333333', lw=0.8,
+                    clip_on=False)
+            ax.plot([bx, bx], [ia, ib], color='#333333', lw=0.8,
+                    clip_on=False)
+            ax.text(bx + span * 0.005, (ia + ib) / 2, label,
+                    va='center', ha='left', fontsize=7.5, color='#333333',
+                    clip_on=False)
+            drawn += 1
+
 
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontsize=8)
     ax.set_xlim(*xlim)
+    # Add top padding so the bracket of the highest-ranked model is not clipped
+    top_pad = 0.8 if (sig_pairs and df_raw is not None) else 0.5
+    ax.set_ylim(-0.5, n - 1 + top_pad)
     ax.set_xlabel('Accuracy (%)', labelpad=4)
 
     legend_elements = [
@@ -256,7 +357,6 @@ def overall_bar(results, xlim, title, out_path, figsize=(4.5, None)):
         Patch(facecolor=C_OPEN, label='Open-source'),
         Patch(facecolor=C_PROP, label='Proprietary'),
     ]
-    # Only show Random if present
     if not any(c == 'rand' for _, _, c in results):
         legend_elements = legend_elements[1:]
     ax.legend(handles=legend_elements, loc='lower right', fontsize=7.5,
@@ -266,7 +366,7 @@ def overall_bar(results, xlim, title, out_path, figsize=(4.5, None)):
     ax.spines['right'].set_visible(False)
     ax.xaxis.grid(True, linewidth=0.3, color='#ccc', linestyle='--', alpha=0.5)
     ax.set_axisbelow(True)
-    fig.subplots_adjust(left=0.28, right=0.97, bottom=0.06, top=0.98)
+    fig.subplots_adjust(left=0.28, right=right_margin, bottom=0.06, top=0.98)
     _save(fig, out_path)
 
 
@@ -327,7 +427,18 @@ def plot_task1(df, out_dir):
 
     # Overall bar
     results = overall_results(df, models, 'Answer', set(PROP_MODELS), set(OPEN_MODELS), 50.0)
-    overall_bar(results, (45, 101), 'Task 1', out_dir / 'figure_task1_overall')
+    # Significant adjacent pairs from McNemar test (one-tailed, ranked by accuracy)
+    sig_pairs_t1 = [
+        ('gemini-3-flash',          'claude-opus-4.6'),
+        ('claude-opus-4.5',         'claude-sonnet-4.5'),
+        ('gpt-5.2',                 'qwen3.5-397b-a17b'),
+        ('claude-haiku-4.5',        'gemini-2.5-flash'),
+        ('glm-5',                   'gemma-3-27b-it'),
+        ('gemma-3-27b-it',          'llama-3.1-8b-instruct'),
+        ('llama-3.1-8b-instruct',   'qwen-2.5-7b-instruct'),
+    ]
+    overall_bar(results, (45, 101), 'Task 1', out_dir / 'figure_task1_overall',
+                df_raw=df, answer_col='Answer', sig_pairs=None)
 
     # Delta LogS line chart
     plot_task1_delta(df, out_dir)
@@ -564,7 +675,8 @@ def plot_task2(df, out_dir):
 
     # Overall bar
     results = overall_results(df, models, 'Answer', set(PROP_MODELS), set(OPEN_MODELS), 17.1)
-    overall_bar(results, (10, 75), 'Task 2', out_dir / 'figure_task2_overall')
+    overall_bar(results, (10, 75), 'Task 2', out_dir / 'figure_task2_overall',
+                df_raw=df, answer_col='Answer', sig_pairs=None)
 
     # Delta LogS line chart
     plot_task2_delta(df, out_dir)
@@ -701,7 +813,8 @@ def plot_task3(df, out_dir):
 
     # Overall bar
     results = overall_results(df, models, 'Answer', set(PROP_MODELS), set(OPEN_MODELS), None)
-    overall_bar(results, (30, 96), 'Task 3', out_dir / 'figure_task3_overall')
+    overall_bar(results, (30, 96), 'Task 3', out_dir / 'figure_task3_overall',
+                df_raw=df, answer_col='Answer', sig_pairs=None)
 
     # MolWt line chart
     _molwt_line_chart(df, 'task3', 'Answer', out_dir, 'figure_task3_molwt')
@@ -868,8 +981,24 @@ def plot_task4(df, out_dir):
 
     ax.barh(y, values, height=0.7, color=colors, alpha=0.85,
             linewidth=0.4, edgecolor='white')
-    for i, val in enumerate(values):
-        ax.text(val + 0.5, i, f'{val:.1f}%', va='center', ha='left', fontsize=7.5)
+
+    # ── 95% CI error bars ────────────────────────────────────────────────────
+    xerr_list = []
+    n_total = len(df)
+    for m, acc, cat in results_raw:
+        if m == 'random_baseline' or m not in df.columns:
+            xerr_list.append(0.0)
+        else:
+            p = acc / 100
+            xerr_list.append(1.96 * np.sqrt(p * (1 - p) / n_total) * 100)
+    ax.errorbar(values, y, xerr=xerr_list, fmt='none',
+                ecolor='#333333', elinewidth=0.8, capsize=2.0, capthick=0.8,
+                zorder=5)
+
+    # ── value labels ─────────────────────────────────────────────────────────
+    for i, (val, err) in enumerate(zip(values, xerr_list)):
+        ax.text(val + err + 0.6, i, f'{val:.1f}%', va='center', ha='left', fontsize=7.5)
+
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontsize=8)
     ax.set_xlim(45, 88)
