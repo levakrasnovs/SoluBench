@@ -1,8 +1,10 @@
 # SoluBench
 
+![SoluBench TOC](TOC.png)
+
 **SoluBench** is a benchmark for evaluating large language models on solubility-related tasks of various complexity. It is built on top of [BigSolDB v2.0](https://www.nature.com/articles/s41597-025-05559-8) and [MixtureSolDB](https://www.nature.com/articles/s41597-026-07047-z) — two curated experimental solubility datasets.
 
-> 📄 Paper: [Can LLMs Solve Solubility Tasks? The SoluBench Benchmark for Pure and Mixed Solvent Systems](https://chemrxiv.org/doi/abs/10.26434/chemrxiv.15000632)
+> 📄 Paper: [Can LLMs Solve Solubility Tasks? The SoluBench Benchmark for Pure and Mixed Solvent Systems](https://doi.org/10.1021/acs.jcim.6c00677), *J. Chem. Inf. Model.* **2026**, 66 (14), 7929–7939
 
 ---
 
@@ -142,9 +144,13 @@ If you use SoluBench in your research, please cite:
 @article{krasnov2026solubench,
   title={Can LLMs Solve Solubility Tasks? The SoluBench Benchmark for Pure and Mixed Solvent Systems},
   author={Krasnov, Lev and Tatarin, Sergei V. and Bezzubov, Stanislav I.},
-  journal={},
+  journal={Journal of Chemical Information and Modeling},
+  volume={66},
+  number={14},
+  pages={7929--7939},
   year={2026},
-  url={https://chemrxiv.org/doi/abs/10.26434/chemrxiv.15000632}
+  publisher={American Chemical Society},
+  doi={10.1021/acs.jcim.6c00677}
 }
 ```
 
